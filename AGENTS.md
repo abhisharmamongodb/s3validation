@@ -94,7 +94,7 @@ docker compose up -d
 AWS_ACCESS_KEY_ID=minioadmin \
 AWS_SECRET_ACCESS_KEY=minioadmin123 \
 AWS_REGION=us-east-1 \
-go run . -endpoint http://localhost:9000 -bucket s3-validation-tests-72n80c6a -v
+./release/s3validation-darwin-arm64 -endpoint http://localhost:9000 -bucket s3-validation-tests-72n80c6a -v
 ```
 
 ### Run against AWS S3
@@ -108,7 +108,7 @@ export AWS_REGION=us-east-1
 # Create a test bucket first (one-time)
 aws s3 mb s3://your-test-bucket
 
-go run . -endpoint s3.us-east-1.amazonaws.com -bucket your-test-bucket -v
+./release/s3validation-darwin-arm64 -endpoint s3.us-east-1.amazonaws.com -bucket your-test-bucket -v
 ```
 
 ### Build binaries
@@ -116,6 +116,9 @@ go run . -endpoint s3.us-east-1.amazonaws.com -bucket your-test-bucket -v
 Build for all supported platforms and place in `release/` directory:
 
 ```bash
+# Create release directory
+mkdir -p release
+
 # macOS ARM64 (Apple Silicon)
 go build -ldflags="-s -w" -o release/s3validation-darwin-arm64 .
 
