@@ -11,7 +11,6 @@ type Credentials struct {
 	AwsSecretAccessKey string
 	AwsSessionToken    string // Optional, used for session-based credentials
 	AwsRegion          string
-	AwsRoleArn         string // Optional, used for assume role
 }
 
 // Validate checks that required credentials are present.
@@ -34,7 +33,6 @@ func (c *Credentials) Validate() error {
 //   - AWS_SECRET_ACCESS_KEY
 //   - AWS_SESSION_TOKEN (optional)
 //   - AWS_REGION or AWS_DEFAULT_REGION
-//   - AWS_ROLE_ARN (optional)
 func LoadFromEnv() Credentials {
 	region := os.Getenv("AWS_REGION")
 	if region == "" {
@@ -46,6 +44,5 @@ func LoadFromEnv() Credentials {
 		AwsSecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
 		AwsSessionToken:    os.Getenv("AWS_SESSION_TOKEN"),
 		AwsRegion:          region,
-		AwsRoleArn:         os.Getenv("AWS_ROLE_ARN"),
 	}
 }

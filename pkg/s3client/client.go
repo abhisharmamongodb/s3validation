@@ -7,15 +7,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go"
 )
 
@@ -31,83 +28,12 @@ type Client struct {
 	endpoint string
 }
 
-// LoggingCredentialsProvider wraps an aws.CredentialsProvider with logging.
-type LoggingCredentialsProvider struct {
-	provider aws.CredentialsProvider
-}
-
-func (l *LoggingCredentialsProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
-	creds, err := l.provider.Retrieve(ctx)
-	if err != nil {
-		return creds, fmt.Errorf("failed to retrieve credentials: %w", err)
-	}
-
-	fmt.Printf("[DEBUG] Successfully retrieved/refreshed AWS credentials. Expires: %s, Valid for: %s\n",
-		creds.Expires.Format(time.RFC3339),
-		time.Until(creds.Expires).String())
-
-	return creds, nil
-}
-
 // NewClient creates a new S3 client based on the provided credentials and endpoint.
 func NewClient(ctx context.Context, creds Credentials, endpoint string) (*Client, error) {
 	if err := creds.Validate(); err != nil {
 		return nil, err
 	}
 
-	var rawClient *s3.Client
-	var err error
-
-	if creds.AwsRoleArn != "" {
-		rawClient, err = createClientWithAssumeRoleProvider(ctx, creds, endpoint)
-	} else {
-		rawClient, err = createClientWithCredentialsProvider(ctx, creds, endpoint)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &Client{
-		raw:      rawClient,
-		endpoint: endpoint,
-	}, nil
-}
-
-func createClientWithAssumeRoleProvider(
-	ctx context.Context,
-	creds Credentials,
-	endpoint string,
-) (*s3.Client, error) {
-	// LoadDefaultConfig checks external configs (ex: env vars). Config requires an explicit region to be set.
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(creds.AwsRegion))
-	if err != nil {
-		return nil, fmt.Errorf("failed to load AWS config: %w", err)
-	}
-
-	// Authenticate with the assumed role ARN.
-	stsClient := sts.NewFromConfig(cfg)
-	assumeRoleProvider := stscreds.NewAssumeRoleProvider(stsClient, creds.AwsRoleArn, func(options *stscreds.AssumeRoleOptions) {
-		options.RoleSessionName = "s3-validation-session"
-	})
-
-	loggingProvider := &LoggingCredentialsProvider{
-		provider: assumeRoleProvider,
-	}
-
-	// This ensures that the provider auto-refreshes credentials.
-	cfg.Credentials = aws.NewCredentialsCache(loggingProvider)
-
-	return s3.NewFromConfig(cfg, func(o *s3.Options) {
-		configureEndpoint(o, endpoint)
-	}), nil
-}
-
-func createClientWithCredentialsProvider(
-	ctx context.Context,
-	creds Credentials,
-	endpoint string,
-) (*s3.Client, error) {
 	s3Cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			creds.AwsAccessKeyId,
@@ -120,9 +46,14 @@ func createClientWithCredentialsProvider(
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
-	return s3.NewFromConfig(s3Cfg, func(o *s3.Options) {
+	rawClient := s3.NewFromConfig(s3Cfg, func(o *s3.Options) {
 		configureEndpoint(o, endpoint)
-	}), nil
+	})
+
+	return &Client{
+		raw:      rawClient,
+		endpoint: endpoint,
+	}, nil
 }
 
 // configureEndpoint sets up the S3 client endpoint options.
